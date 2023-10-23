@@ -211,7 +211,7 @@ class MPC_tk:
         
         waist_mirror = Ray_test.waist()
         # sigma = Ray_test.sigma
-        Fl = 2*self.beam_energy / (waist_mirror**2 * np.pi)
+        Fl = 2*self.beam_energy / (waist_mirror**2 * np.pi)     #Energy in Joule, waist in meters
 
         dict_waists = {'Waist on mirrors':int(Ray_test.waist()*1e6*self.beam_M2)}
         Ray_test.propagation(-self.length/2)
@@ -228,7 +228,7 @@ class MPC_tk:
         # print(1/(np.real(1/Ray_test.qnl)))    #Radius of curvature of the wavefront at lens
         Ray_test.propagation(+self.distance_to_window+self.window_to_lens)
         dict_waists['Waist for alignment'] = int(Ray_test.waist()*1e6*self.beam_M2)
-        dict_waists['Fluence on mirrors'] = int(Fl*1e4)
+        dict_waists['Fluence on mirrors'] = int(Fl*1e3/1e4)        #Fluence in mJ/cm^2
         dict_waists['Sigma'] = self.sigma
 
         return(dict_waists)
@@ -507,7 +507,7 @@ ttk.Label(master=frame_output_labels, text='OUTPUTS').grid(row=0, column=0, stic
 
 
 list_output_names = ['Sigma', 'Waist on mirrors', 'Waist at focus', 'Waist on window', 'Waist on lens', 'Waist for alignment', 'Fluence on mirrors']
-list_output_units = {'Sigma':None, 'Waist on mirrors':'µm', 'Waist at focus':'µm', 'Waist on window':'µm', 'Waist on lens':'µm', 'Waist for alignment':'µm', 'Fluence on mirrors':'J/cm^2'}
+list_output_units = {'Sigma':None, 'Waist on mirrors':'µm', 'Waist at focus':'µm', 'Waist on window':'µm', 'Waist on lens':'µm', 'Waist for alignment':'µm', 'Fluence on mirrors':'mJ/cm^2'}
 list_output_values = {}
 
 
