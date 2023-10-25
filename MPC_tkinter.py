@@ -254,7 +254,7 @@ class MPC_tk:
             self.Ray = ray(self.x_in, self.y_in, self.thetax_in, self.thetay_in, sigma=self.sigma, wl=self.beam_wavelength, z=self.beam_focus_pos, w0=self.beam_waist_size, M2=self.beam_M2)
         energy = self.beam_energy
         self.Bint = 0
-        self.BintViotti = 0
+        self.Bint_moy = 0
 
         self.Ray.propagation(-self.length)
         self.xentry = self.Ray.x
@@ -262,7 +262,7 @@ class MPC_tk:
         self.waist_entry = self.Ray.waist()
         
         self.Bint += self.B_integral(energy=energy)
-        self.BintViotti += self.B_integral(energy=energy, Viotti=True)
+        self.Bint_moy += self.B_integral(energy=energy, c=0)
         
         self.Ray = ray(self.x_in, self.y_in, self.thetax_in, self.thetay_in, sigma=self.sigma, wl=self.beam_wavelength, z=self.beam_focus_pos, w0=self.beam_waist_size, M2=self.beam_M2)
         self.Ray.mirror(self.roc)
@@ -277,9 +277,10 @@ class MPC_tk:
             l_waist_mirror.append(self.Ray.waist())
             self.Ray.propagation(self.length/2)     #Propagate to the middle of the cell
             l_Rcell.append(self.Ray.translate_to_polar()[0])
+
             self.Bint += self.B_integral(energy=energy)
             l_Bint.append(self.B_integral(energy=energy))
-            self.BintViotti += self.B_integral(energy=energy, Viotti=True)
+            self.Bint_moy += self.B_integral(energy=energy, c=0)
 
             self.Ray.propagation(self.length/2)
             r, phi = self.Ray.translate_to_polar()
@@ -294,11 +295,18 @@ class MPC_tk:
         self.b = 7*np.pi**2 * self.n2 * self.pressure * self.power * self.N / (2 * self.beam_wavelength**2)
         return(arr(l_Rmirror), arr(l_phimirror), arr(l_waist_mirror), arr(l_Bint))
 
-    def B_integral(self, energy, Viotti=0):
-        if not Viotti:
-            return 4*np.pi*self.n2*self.pressure/self.beam_wavelength**2 * energy/self.tau0 /np.sqrt(self.sigma*self.beam_M2) * np.arctan(np.sqrt(self.length/(2*self.roc-self.length)))
+    def B_integral(self, energy, c=1):
+        B = 4*np.pi * self.n2*self.pressure/self.beam_wavelength**2 * energy/self.tau0 /np.sqrt(self.sigma) / self.beam_M2 * np.arctan( np.sqrt( self.length / (2*self.roc-self.length) ) )
+        if c:
+            return 2*B
         else:
-            return 2*np.pi**2 * self.n2 * self.pressure * energy/self.tau0 / self.beam_wavelength**2 #* np.arccos(1-self.length/self.roc)
+            return B
+
+        # if not Viotti:
+        #     return 4*np.pi*self.n2*self.pressure/self.beam_wavelength**2 * energy/self.tau0 /np.sqrt(self.sigma*self.beam_M2) * np.arctan(np.sqrt(self.length/(2*self.roc-self.length)))
+        # else:
+        #     return 4*np.pi**2 * self.n2 * self.pressure * energy/self.tau0 / self.beam_wavelength**2 
+        #     return 2*np.pi**2 * self.n2 * self.pressure * energy/self.tau0 / self.beam_wavelength**2 #* np.arccos(1-self.length/self.roc)
 
 
     def init_axes(self, fig, axes):
@@ -371,14 +379,12 @@ class MPC_tk:
         # print(self.outputs_bis)
         # print(f'{self.Bint/self.N/np.pi:.2f}')
         self.outputs_bis['Integrale B par rebond']['text'] = f'{self.Bint/self.N/np.pi:.2f}'
-        self.outputs_bis['Integrale B totale']['text'] = f'{self.Bint/np.pi:.2f}'
         self.outputs_bis['Ratio de compression']['text'] = f'{self.Bint/np.pi:.2f}'
         self.outputs_bis['tau_in']['text'] = f'{self.tau0*1e15:.2f}'
-        self.outputs_bis['tau_out_B']['text'] = f'{self.tau0*1e15/(self.Bint/np.pi):.2f}'
-        self.outputs_bis['Integrale B Viotti par rebond']['text'] = f'{self.BintViotti/np.pi/self.N:.2f}'
-        self.outputs_bis['Integrale BViotti totale']['text'] = f'{self.BintViotti/np.pi:.2f}'
-        self.outputs_bis['Ratio de compression Viotti']['text'] = f'{self.BintViotti/np.pi:.2f}'
-        self.outputs_bis['tau_out_B Viotti']['text'] = f'{self.tau0*1e15/(self.BintViotti/np.pi):.2f}'
+        self.outputs_bis['tau_out']['text'] = f'{self.tau0*1e15/(self.Bint/np.pi):.2f}'
+        self.outputs_bis['Integrale B moyenne par rebond']['text'] = f'{self.Bint_moy/np.pi/self.N:.2f}'
+        self.outputs_bis['Ratio de compression moyen']['text'] = f'{self.Bint_moy/np.pi:.2f}'
+        self.outputs_bis['tau_out moyen']['text'] = f'{self.tau0*1e15/(self.Bint_moy/np.pi):.2f}'
 
 class LimitedFloatEntry(ttk.Entry):
     '''A new type of Entry widget that allows you to set limits on the entry'''
@@ -394,7 +400,7 @@ class LimitedFloatEntry(ttk.Entry):
         # print(self.bounds)
         try:
             value = self.get()
-            print(value)
+            # print(value)
             # special case allows for an empty entry box
             if value not in ('', '-') and not self.bounds[0] <= float(value) <= self.bounds[1]:
                 raise ValueError
@@ -418,7 +424,7 @@ class LimitedFloatEntry(ttk.Entry):
 reflectivity = 0.99
 n0 = 1
 n2 = 0.97e-23
-n2_outside = 3e-24
+n2_outside = 3e-28
 wl = 1030
 Entry_widgets = {}
 MPC_obj = MPC_tk(entries=Entry_widgets, reflectivity=reflectivity, n0=n0, n2=n2, n2_outside=n2_outside, wl=wl)
@@ -452,7 +458,7 @@ Entry_values = {
 }
 
 Entry_bounds = {
-    'Energy':[0, 10], 'Duration':[0, 1000], 'RoC':[0.1,2], 'Radius':[0, 100], 'N':[1, 30], 'L':[0, 1.49],
+    'Energy':[0, 10], 'Duration':[0, 1000], 'RoC':[0,2], 'Radius':[0, 100], 'N':[1, 30], 'L':[0, 1.49],
     'Waist_foc':[0, 2000], 'Waist_lens':[0, 50000], 
     'Pressure':[0, 10], 'x':[-100,100], 'y':[-100,100], 'thetax':[-50, 50], 'thetay':[-50,50], 
     'M2':[0, 1.2], 'd_window':[0, 10], 'd_lens':[0, 10], 'f':[0, 10]
@@ -526,10 +532,10 @@ frame_output_bis = tk.Frame(master=window, relief='ridge', borderwidth=5)
 # ttk.Label(master=frame_output_labels, text='OUTPUTS').grid(row=0, column=0, sticky='w')
 
 
-list_output_names_bis = ['Integrale B par rebond', 'Integrale B totale', 'Ratio de compression', 'tau_in', 'tau_out_B', 
-                     'Integrale B Viotti par rebond', 'Integrale BViotti totale', 'Ratio de compression Viotti', 'tau_out_B Viotti']#, 'Elargissement spectral', 'tau_out_b']
-list_output_units_bis = {'Integrale B par rebond':'pi', 'Integrale B totale':'pi', 'Ratio de compression':None, 'tau_in':'fs', 'tau_out_B':'fs', 
-                     'Integrale B Viotti par rebond':'pi', 'Integrale BViotti totale':'pi', 'Ratio de compression Viotti':None, 'tau_out_B Viotti':'fs'}#, 'Elargissement spectral', 'tau_out_b']
+list_output_names_bis = ['Integrale B par rebond', 'Ratio de compression', 'tau_in', 'tau_out', 
+                     'Integrale B moyenne par rebond', 'Ratio de compression moyen', 'tau_out moyen']
+list_output_units_bis = {'Integrale B par rebond':'pi', 'Ratio de compression':None, 'tau_in':'fs', 'tau_out':'fs', 
+                     'Integrale B moyenne par rebond':'pi', 'Ratio de compression moyen':None, 'tau_out moyen':'fs'}
 
 list_output_values_bis = {}
 
