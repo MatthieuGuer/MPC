@@ -100,13 +100,14 @@ class MPC_tk:
         self.n0 = n0
         self.n2 = n2
         self.n2_outside = n2_outside
-        self.beam_wavelength = wl *1e-9
+        # self.beam_wavelength = wl *1e-9
 
     
     def update_entries(self):
         print('----- Updating entries -----')
 
         # print(self.entries)
+        self.beam_wavelength = self.entries['wl'].value() * 1e-9
         self.N = int(self.entries['N'].value())
         self.length = self.entries['L'].value()
         self.radius = self.entries['Radius'].value()*1e-3
@@ -270,6 +271,7 @@ class MPC_tk:
         l_Rmirror = [self.Ray.translate_to_polar()[0]]
         l_phimirror = [self.Ray.translate_to_polar()[1]]
         l_waist_mirror = []
+        l_waist_center = []
         l_Bint = []
 
         for i in range(self.N):
@@ -277,12 +279,13 @@ class MPC_tk:
             l_waist_mirror.append(self.Ray.waist())
             self.Ray.propagation(self.length/2)     #Propagate to the middle of the cell
             l_Rcell.append(self.Ray.translate_to_polar()[0])
+            l_waist_center.append(self.Ray.waist())
 
             self.Bint += self.B_integral(energy=energy)
             l_Bint.append(self.B_integral(energy=energy))
             self.Bint_moy += self.B_integral(energy=energy, c=0)
 
-            self.Ray.propagation(self.length/2)
+            self.Ray.propagation(self.length/2)     #Propagate to second mirror
             r, phi = self.Ray.translate_to_polar()
             self.Ray.mirror(self.roc)
             l_Rmirror.append(r)
@@ -293,7 +296,7 @@ class MPC_tk:
         
 
         self.b = 7*np.pi**2 * self.n2 * self.pressure * self.power * self.N / (2 * self.beam_wavelength**2)
-        return(arr(l_Rmirror), arr(l_phimirror), arr(l_waist_mirror), arr(l_Bint))
+        return(arr(l_Rmirror), arr(l_phimirror), arr(l_waist_mirror), arr(l_Bint), arr(l_waist_center))
 
     def B_integral(self, energy, c=1):
         B = 4*np.pi * self.n2*self.pressure/self.beam_wavelength**2 * energy/self.tau0 /np.sqrt(self.sigma) / self.beam_M2 * np.arctan( np.sqrt( self.length / (2*self.roc-self.length) ) )
@@ -309,9 +312,11 @@ class MPC_tk:
         #     return 2*np.pi**2 * self.n2 * self.pressure * energy/self.tau0 / self.beam_wavelength**2 #* np.arccos(1-self.length/self.roc)
 
 
-    def init_axes(self, fig, axes):
+    def init_axes(self, fig, axes, fig_waists, axes_waists):
         self.fig = fig
         self.axes = axes
+        self.fig_waists = fig_waists
+        self.axes_waists = axes_waists
         self.circles_list = []
         for ax in self.axes:
             ax.set_xlim([-self.radius*1.1e3, self.radius*1.1e3])
@@ -334,11 +339,11 @@ class MPC_tk:
             print(f'Waist is off by = {error_pos_focus*1e3}mm')
 
             self.update_entry('Waist_foc', waist_middle*1e6)
-            l_Rs, l_thetas, l_waists, l_Bints = self.propag_MPC(amont=True)
+            l_Rs, l_thetas, l_waists, l_Bints, l_waists_center = self.propag_MPC(amont=True)
             dict_waists = self.waists()
 
         else:
-            l_Rs, l_thetas, l_waists, l_Bints = self.propag_MPC()
+            l_Rs, l_thetas, l_waists, l_Bints, l_waists_center = self.propag_MPC()
             dict_waists = self.waists()
             self.update_entry('Waist_lens', dict_waists['Waist on lens'])
 
@@ -361,8 +366,12 @@ class MPC_tk:
             self.l_arts.append(temp)
         self.fig.canvas.draw()
         # self.fig.canvas.flush_events()
-
-
+        # for ax in self.axes_waists:
+        #     ax.clear()
+        self.l_arts.append(self.axes_waists[1].bar(np.arange(self.N), l_waists_center*1e6))
+        self.l_arts.append(self.axes_waists[0].bar(np.arange(0, self.N, 2), l_waists[::2]*1e6))
+        self.l_arts.append(self.axes_waists[2].bar(np.arange(1, self.N, 2), l_waists[1::2]*1e6))
+        self.fig_waists.canvas.draw()
 
 
         # try:
@@ -435,7 +444,9 @@ style = ttk.Style()
 style.configure('.', font=('Arial', 16))
 
 frame_entries = tk.Frame(master=window, relief='ridge', borderwidth=5, width=200, height=100)
-frame_MPC = tk.Frame(master=window, relief='ridge', borderwidth=5, width=100, height=50)
+frame_axes = tk.Frame(master=window, relief='ridge', borderwidth=5, width=200, height=100)
+frame_MPC = tk.Frame(master=frame_axes, relief='ridge', borderwidth=5, width=100, height=50)
+frame_waists = tk.Frame(master=frame_axes, relief='ridge', borderwidth=5, width=100, height=50)
 ttk.Label(master=frame_entries, text='Entries').grid(row=0, column=0)
 
 
@@ -446,22 +457,21 @@ Label_titles = {
     'Energy':'Energy (mJ)', 'Duration':'tau_in (fs)', 'RoC':'RoC (m)', 'Radius':'Radius (mm)', 'N':'N', 'L':'L (m)',
     'Waist_foc':'Waist at focus (µm)', 'Waist_lens':'Waist at lens (µm)', 
     'Pressure':'Pressure (bar)', 'x':'x (mm)', 'y':'y (mm)', 'thetax':'thetax (mrad)', 'thetay':'thetay (mrad)', 
-    'M2':'M2', 'd_window':'d center - window (m)', 'd_lens':'d window - lens (m)', 'f':'f lens (m)'
-    #'Optimize angle', 'Optimal waist', 'NL_propag', 'Propag from outside'
+    'M2':'M2', 'd_window':'d center - window (m)', 'd_lens':'d window - lens (m)', 'f':'f lens (m)', 'wl':'Wavelength'
 }
 
 Entry_values = {
     'Energy':4, 'Duration':450, 'RoC':0.75, 'Radius':25.4, 'N':15, 'L':1.481,
     'Waist_foc':165, 'Waist_lens':1000, 
     'Pressure':1, 'x':20, 'y':0, 'thetax':0, 'thetay':0, 
-    'M2':1, 'd_window':0.5, 'd_lens':2.5, 'f':3
+    'M2':1, 'd_window':0.5, 'd_lens':2.5, 'f':3, 'wl':1030
 }
 
 Entry_bounds = {
     'Energy':[0, 10], 'Duration':[0, 1000], 'RoC':[0,2], 'Radius':[0, 100], 'N':[1, 30], 'L':[0, 1.49],
     'Waist_foc':[0, 2000], 'Waist_lens':[0, 50000], 
-    'Pressure':[0, 10], 'x':[-100,100], 'y':[-100,100], 'thetax':[-50, 50], 'thetay':[-50,50], 
-    'M2':[0, 1.2], 'd_window':[0, 10], 'd_lens':[0, 10], 'f':[0, 10]
+    'Pressure':[0, 10], 'x':[-100,100], 'y':[-100,100], 'thetax':[-100, 100], 'thetay':[-100,100], 
+    'M2':[0, 1.2], 'd_window':[0, 10], 'd_lens':[0, 10], 'f':[0, 10], 'wl':[1, 2500]
 }
 
 
@@ -497,12 +507,27 @@ for i, cbtn_name in enumerate(CBtn_list):
 
 ##### Axes
 ttk.Label(master=frame_MPC, text='MPC').pack()
-fig, axes = plt.subplots(1,2, figsize=(10,4), sharex=True, sharey=True)
+fig, axes = plt.subplots(1,2, figsize=(6,3), sharex=True, sharey=True)
+fig.set_tight_layout(True)
 axes[0].set_ylabel('y (mm)')
 axes[0].set_xlabel('x (mm)')
 axes[1].set_xlabel('x (mm)')
 figure_canvas = FigureCanvasTkAgg(fig, frame_MPC)
 figure_canvas._tkcanvas.pack(fill=tk.BOTH, expand=1)
+axes[0].grid(False)
+axes[1].grid(False)
+
+
+fig_waists, axes_waists = plt.subplots(1,3,figsize=(9,3))
+fig_waists.set_tight_layout(True)
+figure_canvas_2 = FigureCanvasTkAgg(fig_waists, frame_waists)
+figure_canvas_2._tkcanvas.pack(fill=tk.BOTH, expand=1)
+axes_waists[0].set_ylabel('Waist mirror 1 (µm)')
+axes_waists[1].set_ylabel('Waist center (µm)')
+axes_waists[2].set_ylabel('Waist mirror 2 (µm)')
+for ax in axes_waists:
+    ax.set_xlabel('N')
+    ax.grid(False)
 
 # print(Entry_widgets)
 
@@ -558,10 +583,14 @@ btn_quit = ttk.Button(window, text="Quit", command=window.quit).grid(row=3, colu
 
 
 MPC_obj.update_entries()
-MPC_obj.init_axes(fig, axes)
+MPC_obj.init_axes(fig, axes, fig_waists, axes_waists)
 
 frame_entries.grid(row=0, column=0, sticky='nw')
-frame_MPC.grid(row=0, column=1, sticky='nw')
+frame_axes.grid(row=0, column=1, sticky='nw')
+frame_MPC.grid(row=0, column=0, sticky='nw')
+frame_waists.grid(row=1, column=0, sticky='nw')
+
+
 frame_output_labels.grid(row=1, column=0, sticky='nw')
 frame_output_bis.grid(row=1, column=1, sticky='nw')
 window.rowconfigure((0,1), weight=1, minsize=50)
