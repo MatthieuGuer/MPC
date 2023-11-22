@@ -376,10 +376,18 @@ class MPC_tk:
 
         # try:
         # print(dict_waists)
-        for i, name in enumerate(self.outputs):
-            # print(i, name)
-            # self.outputs[name].set(dict_waists[name])
-            self.outputs[name]['text'] = dict_waists[name]
+        # for i, name in enumerate(self.outputs):
+        #     # print(i, name)
+        #     # self.outputs[name].set(dict_waists[name])
+        #     print(name)
+        #     self.outputs[name]['text']              = dict_waists[name]
+        self.outputs['Sigma']['text']               = f'{self.sigma:03f}'
+        self.outputs['Waist on mirrors']['text']    = int(np.min(l_waists)*1e6)
+        self.outputs['Waist at focus']['text']      = int(np.mean(l_waists_center)*1e6)
+        self.outputs['Waist on window']['text']     = dict_waists['Waist on window']
+        self.outputs['Waist on lens']['text']       = dict_waists['Waist on lens']
+        self.outputs['Waist for alignment']['text'] = dict_waists['Waist for alignment']
+        self.outputs['Fluence on mirrors']['text']  = int(2*self.beam_energy / (np.min(l_waists**2 * np.pi)) * 1e3 / 1e4)
         # except AttributeError:
         #     print('Attribute Error :(')
         #     pass
