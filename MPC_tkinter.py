@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 from numpy import array as arr
 from numpy import transpose as tr
 
-import ipywidgets as widgets
-from IPython.display import display
 
 import tkinter as tk
 from tkinter import ttk
